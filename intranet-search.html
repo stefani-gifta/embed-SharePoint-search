@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
+<head><meta name="ms-sp-authoring-source" content="agent">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Intranet search</title>
+<style>
+:root{color-scheme:light;--bg:#e8f3f1;--blue:#0f6cbd;--blue-d:#0b5394;--ink:#1f2d3d;--muted:#5b7089;--tint:#e3eef9}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg)}
+body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:var(--ink)}
+.bar{display:flex;align-items:center;width:100%;max-width:920px;height:52px;margin:0 auto;padding:0 5px 0 18px;background:#fff;border-radius:26px;box-shadow:0 1px 2px rgba(16,60,110,.2),0 4px 12px rgba(16,60,110,.12);transition:box-shadow .15s}
+.bar:focus-within{box-shadow:0 0 0 2px var(--blue),0 4px 12px rgba(16,60,110,.16)}
+.icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.lead{display:flex;color:var(--muted)}
+.bar:focus-within .lead{color:var(--blue)}
+.input{flex:1;min-width:60px;height:100%;border:0;outline:0;padding:0 12px;font:inherit;font-size:16px;background:transparent;color:var(--ink)}
+.input::placeholder{color:#7a8ca3}
+.input::-webkit-search-cancel-button{cursor:pointer}
+.filter{position:relative;display:flex;align-items:center;gap:6px;height:38px;padding:0 11px;margin-right:6px;border-radius:19px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,color .12s}
+.filter::before{content:"";position:absolute;left:-7px;top:7px;bottom:7px;width:1px;background:#dbe4ee}
+.filter:hover{background:var(--tint);color:var(--blue-d)}
+.filter.on{background:var(--tint);color:var(--blue-d)}
+.filter:focus-within{outline:2px solid var(--blue);outline-offset:1px}
+.filter .name{display:none;white-space:nowrap}
+.filter.on .name{display:inline}
+.filter select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:14px}
+.go{display:flex;align-items:center;gap:8px;height:42px;padding:0 20px 0 16px;border:0;border-radius:21px;background:var(--blue);color:#fff;font:inherit;font-weight:600;cursor:pointer;transition:background .12s}
+.go:hover{background:var(--blue-d)}
+.go:focus-visible{outline:2px solid var(--blue-d);outline-offset:2px}
+@media(max-width:520px){.go span{display:none}.go{padding:0 14px}.bar{padding-left:14px}}
+</style>
+
+<!--[if gte mso 9]><xml>
+<mso:CustomDocumentProperties>
+<mso:_SPAssetFolderId msdt:dt="string">58.0000000000000</mso:_SPAssetFolderId>
+</mso:CustomDocumentProperties>
+</xml><![endif]-->
+</head>
+<body>
+<form class="bar" id="searchForm" role="search" action="#">
+  <span class="lead" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg></span>
+  <input class="input" id="keywords" type="search" placeholder="Search the intranet" aria-label="Search keywords" autocomplete="off">
+  <label class="filter" id="filter" title="Filter by file type">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+    <span class="name" id="typeName"></span>
+    <select id="fileType" aria-label="File type">
+      <option value="">All file types</option>
+      <option value="pdf">PDF</option>
+      <option value="docx,doc">Word</option>
+      <option value="xlsx,xls,csv">Excel</option>
+      <option value="pptx,ppt">PowerPoint</option>
+      <option value="one">OneNote</option>
+      <option value="aspx">Pages</option>
+      <option value="jpg,jpeg,png,gif">Images</option>
+      <option value="mp4,mov">Video</option>
+    </select>
+  </label>
+  <button class="go" type="submit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><span>Search</span></button>
+</form>
+<script>
+(() => {
+  const CONFIG = {
+    siteOnly: false, // true = limit results to this site
+    siteUrl: 'https://solusindocorp.sharepoint.com/sites/SolusiCopilotExperienceHub',
+    results: 'https://solusindocorp.sharepoint.com/sites/SolusiCopilotExperienceHub/_layouts/15/osssearchresults.aspx'
+  };
+  const $ = id => document.getElementById(id);
+
+  function buildKql() {
+    const words = $('keywords').value.trim();
+    const ext = $('fileType').value ? $('fileType').value.split(',') : [];
+    if (!words && !ext.length) return '';
+    const c = [];
+    const extra = ext.length || CONFIG.siteOnly;
+    if (words) c.push(extra ? '(' + words + ')' : words);
+    if (ext.length) c.push('(' + ext.map(t => 'FileType:' + t).join(' OR ') + ')');
+    if (CONFIG.siteOnly) c.push('Path:"' + CONFIG.siteUrl + '"');
+    return c.join(' AND ');
+  }
+
+  $('fileType').addEventListener('change', () => {
+    const sel = $('fileType'), label = sel.options[sel.selectedIndex].text;
+    $('filter').classList.toggle('on', !!sel.value);
+    $('typeName').textContent = sel.value ? label : '';
+    $('filter').title = sel.value ? 'File type: ' + label : 'Filter by file type';
+  });
+
+  function go(e) {
+    alert("Search clicked");
+    e.preventDefault();
+    const q = buildKql();
+    if (!q) return;
+    const url = CONFIG.results + '?k=' + encodeURIComponent(q);
+    if (window.self === window.top) { window.location.href = url; return; }
+    const w = window.open(url, '_blank');
+    if (w) return;
+    try { window.top.location.href = url; } catch (err) {}
+    setTimeout(() => {
+      $('keywords').value = '';
+      $('keywords').placeholder = 'Blocked by the embed sandbox - see console';
+      console.warn('Search blocked. Open manually:', url);
+    }, 700);
+  }
+
+  $('searchForm').addEventListener('submit', go);
+})();
+</script>
+</body>
+</html>
