@@ -1,6 +1,6 @@
 <!doctype html>
-<html lang="en" xmlns:mso="urn:schemas-microsoft-com:office:office" xmlns:msdt="uuid:C2F41010-65B3-11d1-A29F-00AA00C14882">
-<head><meta name="ms-sp-authoring-source" content="agent">
+<html lang="en">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
@@ -20,8 +20,7 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
 .input::-webkit-search-cancel-button{cursor:pointer}
 .filter{position:relative;display:flex;align-items:center;gap:6px;height:38px;padding:0 11px;margin-right:6px;border-radius:19px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;transition:background .12s,color .12s}
 .filter::before{content:"";position:absolute;left:-7px;top:7px;bottom:7px;width:1px;background:#dbe4ee}
-.filter:hover{background:var(--tint);color:var(--blue-d)}
-.filter.on{background:var(--tint);color:var(--blue-d)}
+.filter:hover,.filter.on{background:var(--tint);color:var(--blue-d)}
 .filter:focus-within{outline:2px solid var(--blue);outline-offset:1px}
 .filter .name{display:none;white-space:nowrap}
 .filter.on .name{display:inline}
@@ -31,12 +30,6 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
 .go:focus-visible{outline:2px solid var(--blue-d);outline-offset:2px}
 @media(max-width:520px){.go span{display:none}.go{padding:0 14px}.bar{padding-left:14px}}
 </style>
-
-<!--[if gte mso 9]><xml>
-<mso:CustomDocumentProperties>
-<mso:_SPAssetFolderId msdt:dt="string">58.0000000000000</mso:_SPAssetFolderId>
-</mso:CustomDocumentProperties>
-</xml><![endif]-->
 </head>
 <body>
 <form class="bar" id="searchForm" role="search" action="#">
@@ -45,17 +38,7 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
   <label class="filter" id="filter" title="Filter by file type">
     <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
     <span class="name" id="typeName"></span>
-    <select id="fileType" aria-label="File type">
-      <option value="">All file types</option>
-      <option value="pdf">PDF</option>
-      <option value="docx,doc">Word</option>
-      <option value="xlsx,xls,csv">Excel</option>
-      <option value="pptx,ppt">PowerPoint</option>
-      <option value="one">OneNote</option>
-      <option value="aspx">Pages</option>
-      <option value="jpg,jpeg,png,gif">Images</option>
-      <option value="mp4,mov">Video</option>
-    </select>
+    <select id="fileType" aria-label="File types (pick several, one at a time)"></select>
   </label>
   <button class="go" type="submit"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><span>Search</span></button>
 </form>
@@ -66,11 +49,39 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
     siteUrl: 'https://solusindocorp.sharepoint.com/sites/SolusiCopilotExperienceHub',
     results: 'https://solusindocorp.sharepoint.com/sites/SolusiCopilotExperienceHub/_layouts/15/osssearchresults.aspx'
   };
+  const TYPES = [['PDF','pdf'],['Word','docx,doc'],['Excel','xlsx,xls,csv'],['PowerPoint','pptx,ppt'],['OneNote','one'],['Pages','aspx'],['Images','jpg,jpeg,png,gif'],['Video','mp4,mov']];
   const $ = id => document.getElementById(id);
+  const bar = $('searchForm'), sel = $('fileType'), selected = new Set();
+
+  // Native dropdown (never clipped by the iframe). Each pick toggles a type; ticks show what is selected.
+  function refresh() {
+    const n = selected.size;
+    sel.innerHTML = '';
+    const head = document.createElement('option');
+    head.value = ''; head.textContent = n ? 'Clear all' : '';
+    sel.appendChild(head);
+    TYPES.forEach(([label], i) => {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = (selected.has(i) ? '\u2713 ' : '\u2003') + label;
+      sel.appendChild(o);
+    });
+    sel.selectedIndex = -1; // nothing selected, so every option (incl. Clear all) fires change
+    const names = [...selected].sort((a, b) => a - b).map(i => TYPES[i][0]);
+    $('typeName').textContent = n < 3 ? names.join(', ') : n + ' types';
+    $('filter').classList.toggle('on', n > 0);
+    $('filter').title = n ? 'File types: ' + names.join(', ') : 'Filter by file type';
+  }
+
+  sel.addEventListener('change', () => {
+    if (sel.value === '') selected.clear();
+    else { const i = +sel.value; selected.has(i) ? selected.delete(i) : selected.add(i); }
+    refresh();
+  });
+  refresh();
 
   function buildKql() {
     const words = $('keywords').value.trim();
-    const ext = $('fileType').value ? $('fileType').value.split(',') : [];
+    const ext = [...selected].flatMap(i => TYPES[i][1].split(','));
     if (!words && !ext.length) return '';
     const c = [];
     const extra = ext.length || CONFIG.siteOnly;
@@ -79,13 +90,6 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
     if (CONFIG.siteOnly) c.push('Path:"' + CONFIG.siteUrl + '"');
     return c.join(' AND ');
   }
-
-  $('fileType').addEventListener('change', () => {
-    const sel = $('fileType'), label = sel.options[sel.selectedIndex].text;
-    $('filter').classList.toggle('on', !!sel.value);
-    $('typeName').textContent = sel.value ? label : '';
-    $('filter').title = sel.value ? 'File type: ' + label : 'Filter by file type';
-  });
 
   function go(e) {
     e.preventDefault();
@@ -103,7 +107,7 @@ body{padding:10px 12px;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:v
     }, 700);
   }
 
-  $('searchForm').addEventListener('submit', go);
+  bar.addEventListener('submit', go);
 })();
 </script>
 </body>
